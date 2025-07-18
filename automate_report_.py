@@ -57,7 +57,7 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
                 "second_to_last_combined": second_to_last_combined,
                 "file_count": file_count_second_to_last,
                 "folder_size_gb": total_folder_size_gb,
-                "processor_name": "测试人员"
+                "processor_name": "愣头青"
             })
         else:
             print(f"跳过非目录项: {folder_path.name}")
