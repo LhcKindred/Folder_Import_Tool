@@ -96,7 +96,6 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
         row_cells[1].text = data_entry["second_to_last_combined"]
         row_cells[2].text = str(data_entry["file_count"])
         row_cells[3].text = f"{data_entry['folder_size_gb']:.2f} GB"
-        # if len(row_cells) > 7:
         row_cells[4].text = data_entry.get("processor_name", "")
 
     # 保存文件
