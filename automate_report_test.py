@@ -1,7 +1,7 @@
 import os
+import re
 from pathlib import Path
 from docx import Document
-from docx.oxml.ns import qn
 
 # --- 配置变量 ---
 INPUT_BASE_DIR = Path("input_images")
@@ -25,7 +25,13 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
                 print(f"  警告: 在 '{folder_path.name}' 中未找到有效影像文件。跳过此文件夹。")
                 continue
 
-            sorted_image_files = sorted(image_files)
+            def natural_sort_key(s):
+                # 把字符串分割成数字和非数字部分组成的列表，数字转成int
+                return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+            # 对影像文件进行自然排序    
+            sorted_image_files = sorted(image_files, key=natural_sort_key)
+
             first_file = Path(sorted_image_files[0]).stem
             second_file = ""
             last_file = ""
@@ -50,7 +56,7 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
                 "second_to_last_combined": second_to_last_combined,
                 "file_count": file_count_second_to_last,
                 "folder_size_gb": total_folder_size_gb,
-                "processor_name": "王烁宁"
+                "processor_name": "愣头青"
             })
         else:
             print(f"跳过非目录项: {folder_path.name}")
@@ -67,12 +73,25 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
         print(f"错误: 无法加载Word文档模板 '{template_path}'。错误信息: {e}")
         return
 
-    target_table = document.tables[0]  # 假设你只有一个表格
+    target_table = None
+    if len(document.tables) == 0:
+        print("错误: 文档中没有找到任何表格。")
+        return
+    target_table = document.tables[0]
 
-    # --- 重点改动：从第8行（索引7）开始填 ---
+    # 检查表格行数是否大于等于8，如果不够，添加空行
     start_row_idx = 7
+    if len(target_table.rows) <= start_row_idx:
+        for _ in range(start_row_idx + 1 - len(target_table.rows)):
+            target_table.add_row()
 
     print("开始填充数据，从表格第8行开始（索引7）...")
+
+    # 获取第七行格式
+    row_cells = target_table.rows[start_row_idx].cells
+    row_format = [cell for cell in row_cells]
+
+    # 填充数据并复制格式
     for i, data_entry in enumerate(folder_data):
         row_idx = start_row_idx + i
         if row_idx < len(target_table.rows):
@@ -80,38 +99,30 @@ def process_folders_and_update_word(input_base_dir, template_path, output_path):
         else:
             row_cells = target_table.add_row().cells
 
-        # 保持合并结构
-        copy_merged_cells(target_table.rows[start_row_idx], target_table.rows[row_idx])
+        # 保持单元格格式
+        copy_row_format(row_format, row_cells)
 
-        # 填充数据
         row_cells[0].text = data_entry["first_file"]
         row_cells[1].text = data_entry["second_to_last_combined"]
         row_cells[2].text = str(data_entry["file_count"])
         row_cells[3].text = f"{data_entry['folder_size_gb']:.2f} GB"
-        # if len(row_cells) > 7:
         row_cells[4].text = data_entry.get("processor_name", "")
 
-    # 保存文件
+    print(f"准备保存文件: {output_path}")
+
+    # 保存文件并检查错误
     try:
         document.save(output_path)
         print(f"\n报告已成功生成: {output_path}")
     except Exception as e:
         print(f"错误: 无法保存Word文档 '{output_path}'。错误信息: {e}")
 
-def copy_merged_cells(src_row, target_row):
-    """
-    复制合并单元格的结构，从源行到目标行
-    """
-    for src_cell, target_cell in zip(src_row.cells, target_row.cells):
-        # 如果源单元格被合并，复制合并区域
+def copy_row_format(src_row, target_row):
+    for src_cell, target_cell in zip(src_row, target_row):
         if is_merged(src_cell):
-            # 获取合并单元格的父元素，并设置目标单元格的合并属性
             target_cell._element.getparent().append(src_cell._element)
 
 def is_merged(cell):
-    """
-    检查一个单元格是否合并
-    """
     try:
         return cell._tc != cell._element.getparent()
     except Exception:
